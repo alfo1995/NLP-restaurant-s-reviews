@@ -1,0 +1,103 @@
+---
+title: "Natural Language Processing"
+author: "AD"
+date: "31/1/2018"
+output: html_document
+---
+In this project i've applied a machine learning technique on a dataset of restaurant's reviews, predicting with **Random Forest** algorithm if the reviews are *Positives or Negatives*
+
+## Importing Package for NLP 
+```{r}
+library(tm)
+library(SnowballC)
+library(caTools)
+```
+## Read data of restaurant reviews
+```{r}
+# read dataset from input
+dataset_original <- read.delim('/Users/alfonsodamelio/Desktop/machine_learning /Natural_Language_Processing/Restaurant_Reviews.tsv',stringsAsFactors = FALSE,quote = '')
+
+```
+
+### Start machine learning on text with natural language processing package
+```{r}
+# apply with NlP package (parsing, tokenization, stemming)
+corpus <- VCorpus(VectorSource(dataset_original$Review))
+# convert all data in Review column in lower case mode
+corpus <- tm_map(corpus,content_transformer(tolower))
+# remove number
+corpus <- tm_map(corpus,removeNumbers)
+# remove Punctuaction 
+corpus <- tm_map(corpus,removePunctuation)
+# remove stopwords
+corpus <- tm_map(corpus,removeWords,stopwords())
+# stemming word
+corpus <- tm_map(corpus,stemDocument)
+corpus <- tm_map(corpus,stripWhitespace)
+
+```
+
+### Create bag of words of text
+
+What does it mean?
+
+we create first a vocabulary (set of join of all the words used in reviews), then for each word in the vocabulary i see if is inside first review (1.st document):
+
++ if is inside put its term-frequency
++ otherwise 0
+
+```{r}
+dtm <- DocumentTermMatrix(corpus)
+dtm <- removeSparseTerms(dtm,0.999)
+dataset <- as.data.frame(as.matrix(dtm))
+dataset$Liked <- dataset_original$Liked
+dataset$Liked <- factor(dataset$Liked,levels = c(0,1))
+```
+
+Splitting now the dataset into training set and test set (80% - 20%)
+```{r}
+set.seed(123)
+split <- sample.split(dataset$Liked,SplitRatio = 0.8)
+training_set <- subset(dataset,split==TRUE)
+test_set <- subset(dataset,split==FALSE)
+```
+
+Fitting **Random Forest-classification** to the Training set
+```{r}
+library(randomForest)
+classifier <- randomForest(x=training_set[-692],
+                           y=training_set$Liked,
+                           ntree = 10)
+```
+
+Predicting the Test set results
+```{r}
+y_pred <- predict(classifier,newdata = test_set[-692])
+```
+
+Create now **Confusion Matrix** to understand if our model is good
+```{r}
+cm <- table(test_set[,692],y_pred)
+print(cm)
+```
+
++ 21 incorrect predictions of Negative reviews
++ 30 incorrect predictions of Positive reviews
+
+So these below are the most quality measure:
+
++ **Sensitivity**
+
+\[TPR=\frac{TP}{TP+FN}=\frac{70}{70+30}=0.7\]
+
++ **Specificity**
+\[TNR=\frac{TN}{TN+FP}=\frac{79}{79+21}=0.79\]
+
++ **Accuracy**
+\[ACC=\frac{TP+TN}{TP+TN+FP+FN}=\frac{70+79}{79+21+30+70}=0.745\]
+
++ **Precision**
+\[PREC=\frac{TP}{TP+FP}=\frac{70}{70+21}=0.76\]
+
+
+##### That's not bad considering we are training on 900 data.
